@@ -1,7 +1,7 @@
 import datetime
 from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 # from sqlalchemy.sql.expression import func
 import os
 
@@ -20,8 +20,9 @@ class Aircraft(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     serial = db.Column(db.String(250), unique=True, nullable=False)
     manufacturer = db.Column(db.String(250), nullable=False)
-    aircraft_serial_num = relationship("Flight", back_populates="aircraft_serial")
+    aircraft_serial_num = relationship("Flight", back_populates="serial")
     # aircraft_manufacturer = relationship("Flight", back_populates="aircraft_manufacturer")
+
 
 ## TABLE Configuration
 class Flight(db.Model):
@@ -31,7 +32,7 @@ class Flight(db.Model):
     # Foreign Key, "aircrafts.id" the aircrafts refers to the tablename of aircrafts.
     aircraft_id = db.Column(db.Integer, db.ForeignKey("aircrafts.id"))
     # reference to the Aircraft object, the "serial" refers to the serial property in the Aircraft class.
-    aircraft_serial = relationship("Aircraft", back_populates="aircraft_serial_num")
+    serial = relationship("Aircraft", back_populates="aircraft_serial_num")
     # # reference to the Aircraft object, the "manufacturer" refers to the manufacturer property in the Aircraft class.
     # aircraft_manufacturer = relationship("Aircraft", back_populates="manufacturer")
 
@@ -97,6 +98,8 @@ def search_flight_date():
     departure_date_start =request.args.get('from')
     departure_date_end = request.args.get('to')
     now = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M")
+    print(departure_date_start)
+    print(departure_date_end)
     dep_date_start_dt_obj = datetime.datetime.strptime(departure_date_start,"%m/%d/%Y, %H:%M")
     dep_date_end_dt_obj = datetime.datetime.strptime(departure_date_end, "%m/%d/%Y, %H:%M")
     if departure_date_start > now:
@@ -141,11 +144,18 @@ def add_flight():
 @app.route('/patch/<int:flight_id>', methods= ['GET','PATCH'])
 def update_aircraft(flight_id):
     update_aircraft_info = Flight.query.get(flight_id)
+    print("here")
+
     if update_aircraft_info:
-        aircraft_check = request.form.get('aircraft_serial')
+        aircraft_check = request.args.get('aircraft_serial')
+
         update_aircraft_check = Aircraft.query.get(aircraft_check)
+        print("here2")
+
         if update_aircraft_check:
-            update_aircraft_info.aircraft_serial = request.form.get('aircraft_serial')
+            print(update_aircraft_info.aircraft_id)
+            print(update_aircraft_check.id)
+            update_aircraft_info.aircraft_id = update_aircraft_check.id
             db.session.commit()
             return jsonify(response={"success": "Successfully updated flight; aircraft serial data."})
         else:
