@@ -20,8 +20,6 @@ class Aircraft(db.Model):
     serial = db.Column(db.String(250), unique=True, nullable=False)
     manufacturer = db.Column(db.String(250), nullable=False)
     aircraft_serial_num = relationship("Flight", back_populates="serial")
-    # aircraft_manufacturer = relationship("Flight", back_populates="aircraft_manufacturer")
-
 
 ## TABLE Configuration
 class Flight(db.Model):
@@ -32,8 +30,6 @@ class Flight(db.Model):
     aircraft_id = db.Column(db.Integer, db.ForeignKey("aircrafts.id"))
     # reference to the Aircraft object, the "serial" refers to the serial property in the Aircraft class.
     serial = relationship("Aircraft", back_populates="aircraft_serial_num")
-    # # reference to the Aircraft object, the "manufacturer" refers to the manufacturer property in the Aircraft class.
-    # aircraft_manufacturer = relationship("Aircraft", back_populates="manufacturer")
 
     departure_airport = db.Column(db.String(250), nullable=False)
     arrival_airport = db.Column(db.String(250), nullable=False)
@@ -61,7 +57,6 @@ def home():
 @app.route("/all", methods= ['GET','POST'])
 def get_all_flights():
     all_flights = db.session.query(Flight).all()
-    print(all_flights)
     flight_list = []
     for flights in all_flights:
         flight_list.append(flights.make_dict())
@@ -94,16 +89,12 @@ def search_flight_dep():
 
 @app.route("/searchdate", methods= ['GET','POST'])
 def search_flight_date():
-    departure_date_start =request.args.get('from')
-    departure_date_end = request.args.get('to')
-    now = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M")
-    print(departure_date_start)
-    print(departure_date_end)
-    dep_date_start_dt_obj = datetime.datetime.strptime(departure_date_start,"%m/%d/%Y, %H:%M")
-    dep_date_end_dt_obj = datetime.datetime.strptime(departure_date_end, "%m/%d/%Y, %H:%M")
+    #data format : departure_date_start and departure_date_end must be: "%m/%d/%Y,%H:%M"
+    departure_date_start =request.args.get('starttime')
+    departure_date_end = request.args.get('endtime')
+    now = datetime.datetime.now().strftime("%m/%d/%Y,%H:%M")
     if departure_date_start > now:
-        print("okey")
-        date_selected = Flight.query.filter(Flight.departure_date > dep_date_start_dt_obj, Flight.departure_date < dep_date_end_dt_obj).all()
+        date_selected = db.session.query(Flight).filter(Flight.departure_date.between(departure_date_start, departure_date_end)).all()
         flights_selected = []
         for flights in date_selected:
             flights_selected.append(flights.make_dict())
@@ -116,17 +107,17 @@ def search_flight_date():
 
 @app.route("/addflight", methods= ['GET','POST'])
 def add_flight():
-    now = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M")
+    now = datetime.datetime.now().strftime("%m/%d/%Y,%H:%M")
     departure_airport= request.form.get('departure_airport')
     arrival_airport= request.form.get('arrival_airport')
     departure_date = request.form.get('departure_date')
     arrival_date = request.form.get('arrival_date')
-    aircraft_serial = request.form.get('aircraft_serial')
-    aircraft_manufacturer = request.form.get('aircraft_manufacturer')
+    aircraft_id = request.form.get('aircraft_id')
     if departure_date < now:
         return jsonify(response={"fail": "A flight can only be created for a future departure"})
+
     else:
-        aircraft_check = Aircraft.query.filter_by(aircraft_serial=aircraft_serial).first()
+        aircraft_check = Aircraft.query.filter_by(aircraft_id=aircraft_id).first()
         if aircraft_check:
             add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date, aircraft_serial=aircraft_serial, aircraft_manufacturer=aircraft_manufacturer)
             print(add_new_flight)
@@ -143,13 +134,10 @@ def add_flight():
 @app.route('/patch/<int:flight_id>', methods= ['GET','PATCH'])
 def update_aircraft(flight_id):
     update_aircraft_info = Flight.query.get(flight_id)
-    print("here")
 
     if update_aircraft_info:
         aircraft_check = request.args.get('aircraft_serial')
-
         update_aircraft_check = Aircraft.query.get(aircraft_check)
-        print("here2")
 
         if update_aircraft_check:
             print(update_aircraft_info.aircraft_id)
@@ -159,6 +147,7 @@ def update_aircraft(flight_id):
             return jsonify(response={"success": "Successfully updated flight; aircraft serial data."})
         else:
             return jsonify(response={"fail": "No aircraft with this serial."})
+
     else:
         return jsonify(response={"fail": "No flight with this id."})
 
