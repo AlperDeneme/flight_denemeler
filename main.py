@@ -117,9 +117,9 @@ def add_flight():
         return jsonify(response={"fail": "A flight can only be created for a future departure"})
 
     else:
-        aircraft_check = Aircraft.query.filter_by(aircraft_id=aircraft_id).first()
+        aircraft_check = Aircraft.query.filter_by(id=aircraft_id).first()
         if aircraft_check:
-            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date, aircraft_serial=aircraft_serial, aircraft_manufacturer=aircraft_manufacturer)
+            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date, aircraft_id=aircraft_id)
             print(add_new_flight)
             db.session.add(add_new_flight)
             db.session.commit()
