@@ -137,11 +137,8 @@ def update_aircraft(flight_id):
 
     if update_aircraft_info:
         aircraft_check = request.args.get('aircraft_serial')
-        update_aircraft_check = Aircraft.query.get(aircraft_check)
-
+        update_aircraft_check = Aircraft.query.filter_by(serial=aircraft_check).first()
         if update_aircraft_check:
-            print(update_aircraft_info.aircraft_id)
-            print(update_aircraft_check.id)
             update_aircraft_info.aircraft_id = update_aircraft_check.id
             db.session.commit()
             return jsonify(response={"success": "Successfully updated flight; aircraft serial data."})
