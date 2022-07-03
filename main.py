@@ -1,30 +1,44 @@
+import datetime
 from flask import Flask, jsonify, render_template, request
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import relationship
 # from sqlalchemy.sql.expression import func
-import random
+import os
 
 app = Flask(__name__)
 
 ##Connect to Database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cafes.db'
+flight_db = 'sqlite:///flight.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flight.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 apikey= "TopSecretAPIKey"
 
-##Cafe TABLE Configuration
-class Cafe(db.Model):
+class Aircraft(db.Model):
+    __tablename__ = "aircrafts"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(250), unique=True, nullable=False)
-    map_url = db.Column(db.String(500), nullable=False)
-    img_url = db.Column(db.String(500), nullable=False)
-    location = db.Column(db.String(250), nullable=False)
-    seats = db.Column(db.String(250), nullable=False)
-    has_toilet = db.Column(db.Boolean, nullable=False)
-    has_wifi = db.Column(db.Boolean, nullable=False)
-    has_sockets = db.Column(db.Boolean, nullable=False)
-    can_take_calls = db.Column(db.Boolean, nullable=False)
-    coffee_price = db.Column(db.String(250), nullable=True)
+    serial = db.Column(db.String(250), unique=True, nullable=False)
+    manufacturer = db.Column(db.String(250), nullable=False)
+
+##Cafe TABLE Configuration
+class Flight(db.Model):
+    __tablename__ = "flights"
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign Key, "aircrafts.id" the aircrafts refers to the tablename of aircrafts.
+    aircraft_id = db.Column(db.Integer, db.ForeignKey("aircrafts.id"))
+    # reference to the Aircraft object, the "serial" refers to the serial property in the Aircraft class.
+    aircraft_serial = relationship("Aircraft", back_populates="serial")
+    # reference to the Aircraft object, the "manufacturer" refers to the manufacturer property in the Aircraft class.
+    aircraft_manufacturer = relationship("Aircraft", back_populates="manufacturer")
+
+    departure_airport = db.Column(db.String(250), nullable=False)
+    arrival_airport = db.Column(db.String(250), nullable=False)
+
+    # SQLite, date and time types are stored as strings which are then converted back to datetime objects when rows are returned
+    departure_date = db.Column(db.String(250), nullable=False)
+    arrival_date = db.Column(db.String(250), nullable=False)
 
     # def make_dict(self):
     #     dictionary = {}
@@ -32,128 +46,124 @@ class Cafe(db.Model):
     #         dictionary[values.name] = getattr(self, values.name)
     #     return dictionary
 
-    # dictionary comprehension is Below
     def make_dict(self):
         return {column.name: getattr(self, column.name) for column in self.__table__.columns}
-
+if not os.path.isfile(flight_db):
+    db.create_all()
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route("/random", methods= ["GET","POST"])
-def get_random_cafe():
-    all_cafes = db.session.query(Cafe).all()
-    random_cafe = random.choice(all_cafes)
-    print(random_cafe)
-    print(random_cafe.can_take_calls)
-    # uzun yol
-    # deneme = jsonify (can_take_calls=random_cafe.can_take_calls,
-    #         coffee_price=random_cafe.coffee_price,
-    #         has_sockets=random_cafe.has_sockets,
-    #         has_wifi=random_cafe.has_wifi,
-    #         id=random_cafe.id,
-    #         img_url=random_cafe.img_url,
-    #         location=random_cafe.location,
-    #         map_url=random_cafe.map_url,
-    #         name=random_cafe.name,
-    #         seats=random_cafe.seats)
-    # print(type(deneme))
-    deneme = jsonify(cafe= random_cafe.make_dict())
-    # sql alch random function
-    # random_cafe = db.session.query(Cafe).order_by(func.random()).first()
-    return deneme
 @app.route("/all", methods= ['GET','POST'])
-def get_all_cafes():
-    all_cafes = db.session.query(Cafe).all()
-    cafe_list = []
-    for cafes in all_cafes:
-        cafe_list.append(cafes.make_dict())
-    information = jsonify(cafe=cafe_list)
+def get_all_flights():
+    all_flights = db.session.query(Flight).all()
+    flight_list = []
+    for flights in all_flights:
+        flight_list.append(flights.make_dict())
+    information = jsonify(flight=flight_list)
     return information
     # single line version
-    # return jsonify(cafes=[cafe.make_dict() for cafe in all_cafes])
+    # return jsonify(flight_list=[flight.make_dict() for flight in all_flights])
 
 @app.route("/search", methods= ['GET','POST'])
-def search_cafe():
-    location =request.args.get('loc')
-    # cafe_selected = Cafe.query.filter_by(location=location).first()
-    cafe_selected = Cafe.query.filter_by(location=location).all()
-    cafes_selected = []
-    for cafes in cafe_selected:
-        cafes_selected.append(cafes.make_dict())
-    if cafe_selected:
-        return jsonify(cafe=cafes_selected)
-    else:
-        return jsonify(error={"Not Found": "Sorry, we don't have a cafe at that location."})
-    # try and expect also okay
+def search_flight_dep():
+    departure_airport =request.args.get('dep')
+    departure_selected = Flight.query.filter_by(departure_airport=departure_airport).all()
+    arrival_airport =request.args.get('arr')
+    arrival_selected = Flight.query.filter_by(arrival_airport=arrival_airport).all()
 
-# @app.route("/search/<loc>", methods= ['GET','POST'])
-# def search_cafe(loc):
-#     # cafe_selected = Cafe.query.filter_by(location=loc).first()
-#     if cafe_selected:
-#         return jsonify(cafe=cafe_selected.make_dict())
-#     else:
-#         return jsonify(error={"Not Found": "Sorry, we don't have a cafe at that location."})
-    # try and expect also okay
-@app.route("/add", methods= ['GET','POST'])
-def add_cafe():
-    # name_cafe = request.args.get('name')
-    # map_url = request.args.get('map_url')
-    # print(name_cafe)
-    # print(map_url)
-    can_take_calls = bool(request.form.get('can_take_calls'))
-    coffee_price=request.form.get('coffee_price')
-    has_sockets=bool(request.form.get('has_sockets'))
-    has_wifi=bool(request.form.get('has_wifi'))
-    img_url=request.form.get('img_url')
-    location=request.form.get('location')
-    map_url=request.form.get('map_url')
-    name=request.form.get('name')
-    seats=request.form.get('seats')
-    has_toilet=bool(request.form.get('has_toilet'))
-    cafe_check = Cafe.query.filter_by(name=name).first()
-    if cafe_check:
-        return jsonify(response={"fail": "Cafe is already in the database."})
-    else:
-        add_new_cafe = Cafe(can_take_calls=can_take_calls, coffee_price= coffee_price, has_sockets=has_sockets, has_wifi=has_wifi, img_url=img_url, location=location, map_url=map_url, name=name, seats=seats, has_toilet=has_toilet)
-        print(add_new_cafe)
-        db.session.add(add_new_cafe)
-        db.session.commit()
-        return jsonify(response={"success": "Successfully added the new cafe."})
+    dep_flights_selected = []
+    for flights in departure_selected:
+        dep_flights_selected.append(flights.make_dict())
 
-@app.route('/patch/<int:cafe_id>', methods= ['GET','PATCH'])
-def update_coffee_price(cafe_id):
-    update_coffee_p = Cafe.query.get(cafe_id)
-    if update_coffee_p:
-        update_coffee_p.coffee_price = request.form.get('coffee_price')
-        db.session.commit()
-        return jsonify(response={"success": "Successfully updated coffee price."})
-    else:
-        return jsonify(response={"fail": "No cafe with this id."})
+    arr_flights_selected = []
+    for flights in arrival_selected:
+        arr_flights_selected.append(flights.make_dict())
 
-@app.route('/report-closed/<int:cafe_id>',methods= ['GET','DELETE'])
-def delete_coffee_shop(cafe_id):
+    if dep_flights_selected:
+        return jsonify(flight=dep_flights_selected)
+    elif arr_flights_selected:
+        return jsonify(flight=arr_flights_selected)
+    else:
+        return jsonify(error={"Not Found": "Sorry, we don't have a flight at that departure or arrival location."})
+
+@app.route("/searchdate", methods= ['GET','POST'])
+def search_flight_date():
+    departure_date_start =request.args.get('from')
+    departure_date_end = request.args.get('to')
+    now = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M")
+    dep_date_start_dt_obj = datetime.datetime.strptime(departure_date_start,"%m/%d/%Y, %H:%M")
+    dep_date_end_dt_obj = datetime.datetime.strptime(departure_date_end, "%m/%d/%Y, %H:%M")
+    if departure_date_start > now:
+        print("okey")
+        date_selected = Flight.query.filter(Flight.departure_date > dep_date_start_dt_obj, Flight.departure_date < dep_date_end_dt_obj).all()
+        flights_selected = []
+        for flights in date_selected:
+            flights_selected.append(flights.make_dict())
+        if flights_selected:
+            return jsonify(flight=flights_selected)
+        else:
+            return jsonify(error={"Not Found": "Sorry, we don't have a flight at that time range."})
+    else:
+        return jsonify(error={"Wrong Date Range": "Sorry, you can only search flights for future departures."})
+
+
+
+@app.route("/addflight", methods= ['GET','POST'])
+def add_flight():
+    now = datetime.datetime.now().strftime("%m/%d/%Y, %H:%M")
+    departure_airport= request.form.get('departure_airport')
+    arrival_airport= request.form.get('arrival_airport')
+    departure_date = request.form.get('departure_date')
+    arrival_date = request.form.get('arrival_date')
+    aircraft_serial = request.form.get('aircraft_serial')
+    aircraft_manufacturer = request.form.get('aircraft_manufacturer')
+    if departure_date < now:
+        return jsonify(response={"fail": "A flight can only be created for a future departure"})
+    else:
+        aircraft_check = Aircraft.query.filter_by(aircraft_serial=aircraft_serial).first()
+        if aircraft_check:
+            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date, aircraft_serial=aircraft_serial, aircraft_manufacturer=aircraft_manufacturer)
+            print(add_new_flight)
+            db.session.add(add_new_flight)
+            db.session.commit()
+            return jsonify(response={"success": "Successfully added the new flight."})
+        else:
+            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date)
+            print(add_new_flight)
+            db.session.add(add_new_flight)
+            db.session.commit()
+            return jsonify(response={"Info": "Aircraft is not listed in the database.Successfully added the new flight without aircraft info."})
+
+@app.route('/patch/<int:flight_id>', methods= ['GET','PATCH'])
+def update_aircraft(flight_id):
+    update_aircraft_info = Flight.query.get(flight_id)
+    if update_aircraft_info:
+        aircraft_check = request.form.get('aircraft_serial')
+        update_aircraft_check = Aircraft.query.get(aircraft_check)
+        if update_aircraft_check:
+            update_aircraft_info.aircraft_serial = request.form.get('aircraft_serial')
+            db.session.commit()
+            return jsonify(response={"success": "Successfully updated flight; aircraft serial data."})
+        else:
+            return jsonify(response={"fail": "No aircraft with this serial."})
+    else:
+        return jsonify(response={"fail": "No flight with this id."})
+
+@app.route('/report-closed/<int:flight_id>',methods= ['GET','DELETE'])
+def delete_flight(flight_id):
     api_check = request.args.get("api-key")
     if api_check == apikey:
-        delete_coffee = Cafe.query.get(cafe_id)
-        if delete_coffee:
-            db.session.delete(delete_coffee)
+        delete_flight = Flight.query.get(flight_id)
+        if delete_flight:
+            db.session.delete(delete_flight)
             db.session.commit()
-            return jsonify(response={"success": "Successfully delete the cafe"})
+            return jsonify(response={"success": "Successfully delete the flight"})
         else:
-            return jsonify(response= {"error": {"Not Found": "Sorry a cafe with that id was not found in the database."}})
+            return jsonify(response= {"error": {"Not Found": "Sorry flight with that id was not found in the database."}})
     else:
         return jsonify(response={"error": "Sorry, that's not allowed. Make sure you have the correct api_key."})
-
-## HTTP GET - Read Record
-
-## HTTP POST - Create Record
-
-## HTTP PUT/PATCH - Update Record
-
-## HTTP DELETE - Delete Record
-
 
 if __name__ == '__main__':
     app.run(debug=True)
