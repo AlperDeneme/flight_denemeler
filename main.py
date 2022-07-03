@@ -20,8 +20,10 @@ class Aircraft(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     serial = db.Column(db.String(250), unique=True, nullable=False)
     manufacturer = db.Column(db.String(250), nullable=False)
+    aircraft_serial_num = relationship("Flight", back_populates="aircraft_serial")
+    # aircraft_manufacturer = relationship("Flight", back_populates="aircraft_manufacturer")
 
-##Cafe TABLE Configuration
+## TABLE Configuration
 class Flight(db.Model):
     __tablename__ = "flights"
     id = db.Column(db.Integer, primary_key=True)
@@ -29,9 +31,9 @@ class Flight(db.Model):
     # Foreign Key, "aircrafts.id" the aircrafts refers to the tablename of aircrafts.
     aircraft_id = db.Column(db.Integer, db.ForeignKey("aircrafts.id"))
     # reference to the Aircraft object, the "serial" refers to the serial property in the Aircraft class.
-    aircraft_serial = relationship("Aircraft", back_populates="serial")
-    # reference to the Aircraft object, the "manufacturer" refers to the manufacturer property in the Aircraft class.
-    aircraft_manufacturer = relationship("Aircraft", back_populates="manufacturer")
+    aircraft_serial = relationship("Aircraft", back_populates="aircraft_serial_num")
+    # # reference to the Aircraft object, the "manufacturer" refers to the manufacturer property in the Aircraft class.
+    # aircraft_manufacturer = relationship("Aircraft", back_populates="manufacturer")
 
     departure_airport = db.Column(db.String(250), nullable=False)
     arrival_airport = db.Column(db.String(250), nullable=False)
@@ -48,6 +50,7 @@ class Flight(db.Model):
 
     def make_dict(self):
         return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
 if not os.path.isfile(flight_db):
     db.create_all()
 
@@ -58,6 +61,7 @@ def home():
 @app.route("/all", methods= ['GET','POST'])
 def get_all_flights():
     all_flights = db.session.query(Flight).all()
+    print(all_flights)
     flight_list = []
     for flights in all_flights:
         flight_list.append(flights.make_dict())
@@ -107,8 +111,6 @@ def search_flight_date():
             return jsonify(error={"Not Found": "Sorry, we don't have a flight at that time range."})
     else:
         return jsonify(error={"Wrong Date Range": "Sorry, you can only search flights for future departures."})
-
-
 
 @app.route("/addflight", methods= ['GET','POST'])
 def add_flight():
