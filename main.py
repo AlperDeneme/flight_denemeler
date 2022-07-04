@@ -1,7 +1,11 @@
 import datetime
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, backref
+from flask_swagger_ui import get_swaggerui_blueprint
+
+
+
 # from sqlalchemy.sql.expression import func
 import os
 
@@ -12,7 +16,29 @@ flight_db = 'sqlite:///flight.db'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///flight.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-apikey= "TopSecretAPIKey"
+apikey = "TopSecretAPIKey"
+
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
+
+SWAGGER_URL = '/swagger'
+API_URL = '/static/swagger.json'
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': "Flask-Flight-Records-by-Aircrafts"
+    }
+)
+
+
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+
+
+
 
 class Aircraft(db.Model):
     __tablename__ = "aircrafts"
@@ -20,6 +46,7 @@ class Aircraft(db.Model):
     serial = db.Column(db.String(250), unique=True, nullable=False)
     manufacturer = db.Column(db.String(250), nullable=False)
     aircraft_serial_num = relationship("Flight", back_populates="serial")
+
 
 ## TABLE Configuration
 class Flight(db.Model):
@@ -47,15 +74,18 @@ class Flight(db.Model):
     def make_dict(self):
         return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
+
 if not os.path.isfile(flight_db):
     db.create_all()
 
-@app.route("/")
+@app.route("/api/", endpoint='home', methods=['GET'])
 def home():
     return render_template("index.html")
 
-@app.route("/all", methods= ['GET','POST'])
+
+@app.route("/all", methods=['GET', 'POST'])
 def get_all_flights():
+
     all_flights = db.session.query(Flight).all()
     flight_list = []
     for flights in all_flights:
@@ -65,11 +95,12 @@ def get_all_flights():
     # single line version
     # return jsonify(flight_list=[flight.make_dict() for flight in all_flights])
 
-@app.route("/search", methods= ['GET','POST'])
+
+@app.route("/search", methods=['GET', 'POST'])
 def search_flight_dep():
-    departure_airport =request.args.get('dep')
+    departure_airport = request.args.get('dep')
     departure_selected = Flight.query.filter_by(departure_airport=departure_airport).all()
-    arrival_airport =request.args.get('arr')
+    arrival_airport = request.args.get('arr')
     arrival_selected = Flight.query.filter_by(arrival_airport=arrival_airport).all()
 
     dep_flights_selected = []
@@ -87,14 +118,16 @@ def search_flight_dep():
     else:
         return jsonify(error={"Not Found": "Sorry, we don't have a flight at that departure or arrival location."})
 
-@app.route("/searchdate", methods= ['GET','POST'])
+
+@app.route("/searchdate", methods=['GET', 'POST'])
 def search_flight_date():
-    #data format : departure_date_start and departure_date_end must be: "%m/%d/%Y,%H:%M"
-    departure_date_start =request.args.get('starttime')
+    # data format : departure_date_start and departure_date_end must be: "%m/%d/%Y,%H:%M"
+    departure_date_start = request.args.get('starttime')
     departure_date_end = request.args.get('endtime')
     now = datetime.datetime.now().strftime("%m/%d/%Y,%H:%M")
     if departure_date_start > now:
-        date_selected = db.session.query(Flight).filter(Flight.departure_date.between(departure_date_start, departure_date_end)).all()
+        date_selected = db.session.query(Flight).filter(
+            Flight.departure_date.between(departure_date_start, departure_date_end)).all()
         flights_selected = []
         for flights in date_selected:
             flights_selected.append(flights.make_dict())
@@ -105,11 +138,12 @@ def search_flight_date():
     else:
         return jsonify(error={"Wrong Date Range": "Sorry, you can only search flights for future departures."})
 
-@app.route("/addflight", methods= ['GET','POST'])
+
+@app.route("/addflight", methods=['GET', 'POST'])
 def add_flight():
     now = datetime.datetime.now().strftime("%m/%d/%Y,%H:%M")
-    departure_airport= request.form.get('departure_airport')
-    arrival_airport= request.form.get('arrival_airport')
+    departure_airport = request.form.get('departure_airport')
+    arrival_airport = request.form.get('arrival_airport')
     departure_date = request.form.get('departure_date')
     arrival_date = request.form.get('arrival_date')
     aircraft_id = request.form.get('aircraft_id')
@@ -119,19 +153,23 @@ def add_flight():
     else:
         aircraft_check = Aircraft.query.filter_by(id=aircraft_id).first()
         if aircraft_check:
-            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date, aircraft_id=aircraft_id)
+            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport=arrival_airport,
+                                    departure_date=departure_date, arrival_date=arrival_date, aircraft_id=aircraft_id)
             print(add_new_flight)
             db.session.add(add_new_flight)
             db.session.commit()
             return jsonify(response={"success": "Successfully added the new flight."})
         else:
-            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport= arrival_airport, departure_date=departure_date, arrival_date=arrival_date)
+            add_new_flight = Flight(departure_airport=departure_airport, arrival_airport=arrival_airport,
+                                    departure_date=departure_date, arrival_date=arrival_date)
             print(add_new_flight)
             db.session.add(add_new_flight)
             db.session.commit()
-            return jsonify(response={"Info": "Aircraft is not listed in the database.Successfully added the new flight without aircraft info."})
+            return jsonify(response={
+                "Info": "Aircraft is not listed in the database.Successfully added the new flight without aircraft info."})
 
-@app.route('/patch/<int:flight_id>', methods= ['GET','PATCH'])
+
+@app.route('/patch/<int:flight_id>', methods=['GET', 'PATCH'])
 def update_aircraft(flight_id):
     update_aircraft_info = Flight.query.get(flight_id)
 
@@ -148,7 +186,8 @@ def update_aircraft(flight_id):
     else:
         return jsonify(response={"fail": "No flight with this id."})
 
-@app.route('/report-closed/<int:flight_id>',methods= ['GET','DELETE'])
+
+@app.route('/report-closed/<int:flight_id>', methods=['GET', 'DELETE'])
 def delete_flight(flight_id):
     api_check = request.args.get("api-key")
     if api_check == apikey:
@@ -158,9 +197,11 @@ def delete_flight(flight_id):
             db.session.commit()
             return jsonify(response={"success": "Successfully delete the flight"})
         else:
-            return jsonify(response= {"error": {"Not Found": "Sorry flight with that id was not found in the database."}})
+            return jsonify(
+                response={"error": {"Not Found": "Sorry flight with that id was not found in the database."}})
     else:
         return jsonify(response={"error": "Sorry, that's not allowed. Make sure you have the correct api_key."})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

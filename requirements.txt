@@ -1,0 +1,5 @@
+flask
+sqlalchemy
+markupsafe==2.0.1
+flask-sqlalchemy
+flask-swagger-ui==3.20.9
